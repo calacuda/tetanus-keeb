@@ -36,30 +36,30 @@ fn main() -> anyhow::Result<()> {
     info!("peripherals taken");
     let keeb_Perph = KeebPeriph {
         columns: [
-            pins.gpio4.into(),
-            pins.gpio5.into(),
-            pins.gpio6.into(),
-            pins.gpio7.into(),
-            pins.gpio15.into(),
-            pins.gpio16.into(),
-            pins.gpio17.into(),
-            pins.gpio18.into(),
-            pins.gpio8.into(),
-            pins.gpio3.into(),
-            pins.gpio46.into(),
-            pins.gpio9.into(),
-            pins.gpio10.into(),
-            pins.gpio11.into()
+            pins.gpio4,
+            pins.gpio5,
+            pins.gpio6,
+            pins.gpio7,
+            pins.gpio15,
+            pins.gpio16,
+            pins.gpio17,
+            pins.gpio18,
+            pins.gpio8,
+            pins.gpio3,
+            pins.gpio46,
+            pins.gpio9,
+            pins.gpio10,
+            pins.gpio11
         ],
         rows: [
-            pins.gpio1.into(),
-            pins.gpio2.into(),
-            pins.gpio42.into(),
-            pins.gpio41.into(),
-            pins.gpio40.into(),
-            pins.gpio39.into(),
+            pins.gpio1,
+            pins.gpio2,
+            pins.gpio42,
+            pins.gpio41,
+            pins.gpio40,
+            pins.gpio39,
         ],
-        ble_toggle_pin: pins.gpio14.into()
+        ble_toggle_pin: pins.gpio14
     };
     let led_togle_pin = pins.gpio13;
     info!("making keyboard in usb mode");
