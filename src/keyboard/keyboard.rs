@@ -24,12 +24,6 @@ pub trait Keyboard {
     fn release(&mut self, key: Key) -> anyhow::Result<()>;
 }
 
-/// returns true if the bluetooth switch is toggled to the bluetooth setting. 
-fn bluetooth_switch(periphs: &KeebPeriph) -> bool {
-    // TODO: check bluetooth switch status
-    periphs.ble_toggle_pin.is_high()
-}
-
 #[derive(PartialEq, Eq, Clone, Hash)]
 enum KeebMode {
     USB,
@@ -80,10 +74,16 @@ impl KeysState<'_> {
         Ok(())      
     }
 
+    /// returns true if the bluetooth switch is toggled to the bluetooth setting. 
+    fn bluetooth_switch(&mut self) -> bool {
+        // TODO: check bluetooth switch status
+        self.periphs.ble_toggle_pin.is_high()
+    }
+
     /// toggles between bluetooth and wired mode only if necessary. this function is idempotent and should be
     /// called before every key scan
     fn set_bluetooth(&mut self) {
-        let bluetooth = bluetooth_switch(&self.periphs);
+        let bluetooth = self.bluetooth_switch();
         
         if bluetooth && self.mode == KeebMode::USB {
             self.release_all();
