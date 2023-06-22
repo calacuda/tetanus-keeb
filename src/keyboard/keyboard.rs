@@ -1,15 +1,15 @@
 use anyhow;
-// use esp_idf_hal::prelude::Peripherals;
-use std::collections::HashSet;
+use esp_idf_hal::gpio::{AnyOutputPin, AnyInputPin, PinDriver, Output, Input};
+use esp_idf_sys::EspError;
+
 use crate::usb_keeb::HidReport;
-// use esp_idf_hal::gpio::Gpio29;
+use crate::layout::{Layout, DefaultLayout};
 use crate::keyboard::blt_keeb::BLKeyboard;
 use crate::keyboard::keeb_periph::{
     KeebPeriph,
     N_COLS,
     N_ROWS
 };
-
 
 pub type Key = u8;
 
@@ -27,13 +27,7 @@ pub trait Keyboard {
 /// returns true if the bluetooth switch is toggled to the bluetooth setting. 
 fn bluetooth_switch(periphs: &KeebPeriph) -> bool {
     // TODO: check bluetooth switch status
-    false
-}
-
-#[derive(PartialEq, Eq, Clone, Hash)]
-enum KeyActions {
-    Pressed(Key),
-    Released(Key),
+    periphs.ble_toggle_pin.is_high()
 }
 
 #[derive(PartialEq, Eq, Clone, Hash)]
@@ -43,38 +37,47 @@ enum KeebMode {
 }
 
 /// a state machine that stores the state of the keyboards key and can send that data 
-pub struct KeysState {
-    modifiers: HashSet<Key>,
-    pressed: HashSet<Key>,
+pub struct KeysState<'a> {
+    pressed: Vec<Key>,  // the key codes that are currently pressed   
     mode: KeebMode,
-    // blt_keeb: Option<BLKeyboard>,
-    // usb_keeb: HidReport
+    layout: Box<dyn Layout>,
     keeb: Box<dyn Keyboard>,
-    periphs: KeebPeriph,
+    periphs: KeebPeriph<'a>,
 }
 
-impl KeysState {
-    pub fn new(periphs: KeebPeriph) -> Self {
-        // Self { 
-        //     modifiers: HashSet::new(),
-        //     pressed: HashSet::new(),
-        //     mode: KeebMode::USB,
-        //     blt_keeb: None,
-        //     usb_keeb: HidReport::new()
-        // }
-        Self { 
-            modifiers: HashSet::new(),
-            pressed: HashSet::new(),
+impl KeysState<'_> {
+    pub fn new(
+        cols: [AnyOutputPin; N_COLS],
+        rows: [AnyInputPin; N_ROWS],
+        led_switch: AnyInputPin,
+        ble_switch: AnyInputPin
+    ) -> anyhow::Result<Self> {
+        let col_pins: Result<Vec<PinDriver<'_, AnyOutputPin, Output>>, EspError> = cols.map(|pin| PinDriver::output(pin)).into_iter().collect();
+        let row_pins: Result<Vec<PinDriver<'_, AnyInputPin, Input>>, EspError> = rows.map(|pin| PinDriver::input(pin)).into_iter().collect();
+        let led_pin = PinDriver::input(led_switch)?;
+        let ble_pin = PinDriver::input(ble_switch)?;
+
+        Ok(Self { 
+            pressed: Vec::with_capacity(6),
             mode: KeebMode::USB,
+            layout: Box::new(DefaultLayout::new()),
             keeb: Box::new(HidReport::new()),
-            periphs: periphs
-        }
+            periphs: KeebPeriph { 
+                columns: col_pins?, 
+                rows: row_pins?, 
+                ble_toggle_pin: led_pin, 
+                led_toggle_pin: ble_pin
+            }
+        })
     }
 
     /// Initializes the keyboard including checking the bluetooth. 
-    pub fn init(&mut self) {
+    pub fn init(&mut self) -> anyhow::Result<()> {
         self.set_bluetooth();
-        let _ = self.keeb.init();        
+        let _ = self.periphs.columns.iter_mut().map(|col| col.set_low());
+        self.keeb.init()?;
+
+        Ok(())      
     }
 
     /// toggles between bluetooth and wired mode only if necessary. this function is idempotent and should be
@@ -83,82 +86,58 @@ impl KeysState {
         let bluetooth = bluetooth_switch(&self.periphs);
         
         if bluetooth && self.mode == KeebMode::USB {
+            self.release_all();
             self.mode = KeebMode::BLT;
             self.keeb = Box::new(BLKeyboard::new());
         } else if !bluetooth && self.mode == KeebMode::BLT{
+            self.release_all();
             self.mode = KeebMode::USB;
             self.keeb = Box::new(HidReport::new());
             let _ = self.keeb.init();
         }
-
-        // if bluetooth && self.mode == KeebMode::USB {
-        //     self.mode = KeebMode::BLT;
-        //     self.blt_keeb = Some(BLKeyboard::new());
-        // } else if !bluetooth && self.mode == KeebMode::BLT{
-        //     self.mode == KeebMode::USB;
-        //     self.blt_keeb = None;
-        // }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> anyhow::Result<()> {
         self.set_bluetooth();
-        // TODO: check fn key
+        let mut switches = Vec::with_capacity(10);
+
         for col in 0..N_COLS {
-            // TODO: turn on pin self.periphs.columns[col]
+            self.periphs.columns[col].set_high()?;
             for row in 0..N_ROWS {
-                // TODO: get keycode for key at (row, col)
-                // TODO: read val of self.periphs.rows[row]
-                // TODO: get key at location
-                // TODO: if high && key in self.pressed, keep key in self.pressed
-                // TODO: if high && key not in self.pressed, send press for and add key to self.pressed
-                // TODO: if low && key in self.pressed, send release for key and remove key from self.pressed
-                // TODO: if low && key not in self.pressed, do nothing
+                if self.periphs.rows[row].is_high() {
+                    switches.push((row, col));
+                }
             }
+            self.periphs.columns[col].set_low()?;
         }
+
+        let pressed = self.layout.get_key(&switches[0..6]);
+
+        self.trigger_keys(&pressed);
+        self.pressed = pressed;
+
+        Ok(())
     }
 
-    // // done (in theory)
-    // pub fn update(&mut self) -> HashSet<KeyActions> {
-    //     // let mut changes = Vec::with_capacity(6);
-    //     let mut changes: HashSet<KeyActions> = HashSet::with_capacity(6);
+    /// triggers the needed key presses and releases
+    fn trigger_keys(&mut self, pressed: &[Key]) {
+        let mut all = self.pressed.clone();
+        all.append(&mut pressed.to_vec());
 
-    //     let new_pressed = self.get_pressed();
-        
-    //     changes.extend(self.pressed
-    //         .iter()
-    //         .filter(|key| !new_pressed.contains(key))
-    //         .map(|key| KeyActions::Released(*key))
-    //         .collect::<HashSet<KeyActions>>()
-    //     );
-        
-    //     changes.extend(
-    //         new_pressed
-    //         .iter()
-    //         .map(|key| KeyActions::Pressed(*key))
-    //         .collect::<HashSet<KeyActions>>()            
-    //     );
+        // release the no longer pressed keys .
+        let _ = all.into_iter()
+            .filter(|key| self.pressed.contains(key) && !pressed.contains(key))
+            .map(|key| self.keeb.release(key));
 
-    //     changes
-    // }
+        // press the pressed keys
+        let _ = pressed.into_iter().filter(|key| !self.pressed.contains(key)).map(|key| self.keeb.press(*key));
+    }
 
-    // fn get_pressed(&mut self) -> HashSet<Key> {
-    //     let mut pressed = HashSet::new();
+    /// releases all pressed keys (just to be safe)
+    fn release_all(&mut self) {
+        let _ = self.pressed.iter()
+            .map(|key| self.keeb.release(*key));
 
-    //     // TODO add keyboard matrix scan
-
-    //     pressed
-    // }
-
-    // /// sends the stored keys to the connected computer
-    // pub fn send_keys(&mut self) -> anyhow::Result<()> {
-    //     for modifier in &self.modifiers {
-    //         self.keeb.press(*modifier)?;
-    //     }
-
-    //     for key in &self.keys {
-    //         self.keeb.press(*key)?;
-    //     }
-
-    //     Ok(())
-    // }
+        self.pressed = Vec::with_capacity(6);
+    }
 }

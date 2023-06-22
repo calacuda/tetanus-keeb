@@ -1,25 +1,19 @@
 use anyhow;
 use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
-use esp_idf_hal::peripherals::Peripherals;
-// use keycodes::HID_KEY_SPACE;
+use esp_idf_hal::{peripherals::Peripherals, gpio::*};
 use log::*;
 
 use keyboard::{
     KeyboardState,
-    // KeysState,
 };
 
-// use crate::usb_keeb::{
-//     HidReport,
-//     HidReportType,
-// };
+use crate::keyboard::keeb_periph::{N_COLS, N_ROWS};
 
 mod keycodes;
 mod usb_keeb;
 mod loop_tick;
 mod keyboard;
-
-use crate::keyboard::keeb_periph::KeebPeriph;
+mod layout;
 
 pub const INIT_USB: bool = true;
 
@@ -34,47 +28,58 @@ fn main() -> anyhow::Result<()> {
     let peripherals = Peripherals::take().unwrap();
     let pins = peripherals.pins;
     info!("peripherals taken");
-    let keeb_Perph = KeebPeriph {
-        columns: [
-            pins.gpio4,
-            pins.gpio5,
-            pins.gpio6,
-            pins.gpio7,
-            pins.gpio15,
-            pins.gpio16,
-            pins.gpio17,
-            pins.gpio18,
-            pins.gpio8,
-            pins.gpio3,
-            pins.gpio46,
-            pins.gpio9,
-            pins.gpio10,
-            pins.gpio11
-        ],
-        rows: [
-            pins.gpio1,
-            pins.gpio2,
-            pins.gpio42,
-            pins.gpio41,
-            pins.gpio40,
-            pins.gpio39,
-        ],
-        ble_toggle_pin: pins.gpio14
-    };
-    let led_togle_pin = pins.gpio13;
+
+    // columns for the keyboard matrix.
+    let cols: [AnyOutputPin; N_COLS] = [
+        pins.gpio4.into(),
+        pins.gpio5.into(),
+        pins.gpio6.into(),
+        pins.gpio7.into(),
+        pins.gpio15.into(),
+        pins.gpio16.into(),
+        pins.gpio17.into(),
+        pins.gpio18.into(),
+        pins.gpio8.into(),
+        pins.gpio3.into(),
+        pins.gpio46.into(),
+        pins.gpio9.into(),
+        pins.gpio10.into(),
+        pins.gpio11.into(),
+    ];
+
+    // rows for the keyboard matrix
+    let rows: [AnyInputPin; N_ROWS] = [
+        pins.gpio1.into(),
+        pins.gpio2.into(),
+        pins.gpio42.into(),
+        pins.gpio41.into(),
+        pins.gpio40.into(),
+        pins.gpio39.into(),
+    ];
+
+    // the pin for the bluetooth switch
+    let ble_pin = pins.gpio14.into();
+    // the pin for the LED back light on/off
+    let led_pin = pins.gpio13.into();
+    
+    // let keeb_periphs = keyboard::keeb_periph::KeebPeriph { 
+    //     columns: cols, 
+    //     rows: rows, 
+    //     ble_toggle_pin: led_pin, 
+    //     led_toggle_pin: ble_pin
+    // };
+
     info!("making keyboard in usb mode");
-    let mut keyboard = KeyboardState::new(keeb_Perph);
+    // let mut keyboard = KeyboardState::new(keeb_periphs)?;
+    let mut keyboard = KeyboardState::new(cols, rows, led_pin, ble_pin)?;
     // hello_world(&mut hid_keeb);
-    keyboard.init();
+    keyboard.init()?;
 
    
     loop {
-        // press_keys(&mut state.keys, &mut keyboard);
-        // step_lighting_effect(&mut state);
-        // esp_idf_hal::delay::FreeRtos::delay_ms(100);
-        // esp_idf_hal::delay::FreeRtos::delay_ms(1000);
-
-        keyboard.step();
+        if let Err(e) = keyboard.step() {
+            error!("[ERROR] failed to step keyboard state. got error: {e}");
+        }
         esp_idf_hal::delay::FreeRtos::delay_ms(1);
     }
 }

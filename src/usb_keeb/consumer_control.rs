@@ -19,10 +19,10 @@ impl ConsumerControlReport {
         self.send();
     }
 
-    pub fn clear(&mut self) {
-        self.code = 0;
-        self.send();
-    }
+    // pub fn clear(&mut self) {
+    //     self.code = 0;
+    //     self.send();
+    // }
 
     fn send(&self) {
         unsafe {
