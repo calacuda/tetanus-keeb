@@ -76,7 +76,6 @@ impl KeysState<'_> {
 
     /// returns true if the bluetooth switch is toggled to the bluetooth setting. 
     fn bluetooth_switch(&mut self) -> bool {
-        // TODO: check bluetooth switch status
         self.periphs.ble_toggle_pin.is_high()
     }
 

@@ -213,9 +213,9 @@ const ASCII_MAP: &'static [u8] = &[
 
 // #[repr(packed)]
 pub struct BLKeyReport {
-    modifiers: u8, // TODO make this able to send multiple modifiers at once (ctrl + alt, for example)
+    modifiers: u8, // TODO make this able to send multiple modifiers at once (ctrl + alt, for example) (does this already happen?)
     // reserved: u8,
-    keys: HashSet<u8>, // TODO make this larger to get n-key roll over
+    keys: HashSet<u8>,
     // keys: [u8; 6], // TODO make this larger to get n-key roll over
 }
 
@@ -317,7 +317,6 @@ impl BLKeyboard {
     //     self.send_report(&self.key_report);
     // }
 
-    /// TODO allow it to send the shift key (important for games like minecraft)
     fn send_report(&self, keys: &BLKeyReport) {
         self.input_keyboard.lock().set_from(keys).notify();
         esp_idf_hal::delay::Ets::delay_ms(7);

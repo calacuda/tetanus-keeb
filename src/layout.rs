@@ -17,7 +17,7 @@ pub struct DefaultLayout {
 
 impl DefaultLayout {
     pub fn new() -> Self {
-        // TODO: make layout
+        // TODO: make an actual layout
         Self {
             layout: vec!(
                 [
