@@ -34,7 +34,7 @@ esp-idf-hal = { version = "0.41", optional = true, default-features = false }
 esp-idf-svc = { version = "0.46", optional = true, default-features = false }
 embedded-svc = { version = "0.25", optional = true, default-features = false }
 anyhow = "1.0.71"
-esp32-nimble = "0.1.1"
+esp32-nimble = "0.2.0"
 ws2812-esp32-rmt-driver = "0.5.0"
 
 [build-dependencies]
@@ -46,3 +46,7 @@ component_dirs = ["usb_util"]
 # @see https://github.com/esp-rs/esp-idf-sys/issues/180
 # bindings_header = "usb_util/usb_util.h"
 # bindings_module = "usb_util"
+# [[package.metadata.esp-idf-sys.extra_components]]
+# remote_component = { name = "espressif/tinyusb", version = "^0.15.0~2" }
+# [[package.metadata.esp-idf-sys.extra_components]]
+# remote_component = { name = "espressif/esp_tinyusb", version = "^1.3.1" }

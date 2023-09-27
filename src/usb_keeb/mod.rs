@@ -1,6 +1,6 @@
+use crate::keyboard::keyboard::{Key, Keyboard};
 use anyhow::Ok;
-use log::{warn, info};
-use crate::keyboard::keyboard::{Keyboard, Key};
+use log::{info, warn};
 
 mod consumer_control;
 mod keyboard;
@@ -45,7 +45,7 @@ impl HidReport {
                 KeyCode::None => (),
                 KeyCode::Consumer(_) => self.consumer_control.release(),
                 KeyCode::Key(hid_key) => self.keyboard.release(hid_key),
-            }
+            },
         }
     }
 
@@ -54,11 +54,15 @@ impl HidReport {
     //     self.consumer_control.clear();
     // }
 
-    pub fn _type_char(&mut self, key_code: u8) {
-        let dlay = 100;
-        self.send( HidReportType::KeyPress { key_code: KeyCode::Key(key_code) });
+    pub fn type_char(&mut self, key_code: u8) {
+        let dlay = 500;
+        self.send(HidReportType::KeyPress {
+            key_code: KeyCode::Key(key_code),
+        });
         esp_idf_hal::delay::FreeRtos::delay_ms(dlay);
-        self.send( HidReportType::KeyRelease { key_code: KeyCode::Key(key_code) });
+        self.send(HidReportType::KeyRelease {
+            key_code: KeyCode::Key(key_code),
+        });
     }
 }
 
@@ -68,7 +72,7 @@ impl Keyboard for HidReport {
         if crate::INIT_USB {
             unsafe { usb_util_init() }
         } else {
-            warn!("Skipping USB init")
+            warn!("Skipping USB  init")
         }
 
         esp_idf_hal::delay::FreeRtos::delay_ms(1100);
@@ -78,12 +82,16 @@ impl Keyboard for HidReport {
     }
 
     fn press(&mut self, key: Key) -> anyhow::Result<()> {
-        self.send(HidReportType::KeyPress { key_code: KeyCode::Key(key) });
+        self.send(HidReportType::KeyPress {
+            key_code: KeyCode::Key(key),
+        });
         Ok(())
     }
 
     fn release(&mut self, key: Key) -> anyhow::Result<()> {
-        self.send(HidReportType::KeyRelease { key_code: KeyCode::Key(key) });
+        self.send(HidReportType::KeyRelease {
+            key_code: KeyCode::Key(key),
+        });
         Ok(())
     }
-} 
+}

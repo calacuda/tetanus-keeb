@@ -1,5 +1,5 @@
-use log::{info};
 use super::usb_util_keyboard_report;
+use log::info;
 
 pub struct KeyboardReport<const N: usize> {
     modifier: u8,
